@@ -1,0 +1,59 @@
+trigger:
+- main
+
+pool:
+  name: Default
+  # vmImage: ubuntu-latest
+
+stages:
+  - stage: Build
+    displayName: Build stage
+    jobs:
+      - job:
+        displayName: Build job
+        steps:
+          - task: CmdLine@2
+            inputs:
+              script: |
+                python3 -m venv venv
+                source venv/bin/activate
+                pip install -r requirements.txt
+              workingDirectory: '$(System.DefaultWorkingDirectory)/msdocs-python-flask-webapp-quickstart-main'
+          
+          - task: ArchiveFiles@2
+            displayName: Archive source code
+            inputs:
+              rootFolderOrFile: '$(System.DefaultWorkingDirectory)/msdocs-python-flask-webapp-quickstart-main'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              replaceExistingArchive: true
+              
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
+  - stage: 
+    displayName: Deployment
+    dependsOn: Build
+    condition: Succeeded()
+    jobs:
+      - job: Deploy
+        displayName: Deployment job
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: Download Artifacts
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'drop'
+              downloadPath: '$(Build.ArtifactStagingDirectory)'
+              
+          - task: AzureWebApp@1
+            displayName: Deploy to webapp
+            inputs:
+              azureSubscription: 'Temp-Udacity-SP-Conn'
+              appType: 'webAppLinux'
+              appName: 'udacitydemo34234'
+              package: '$(Build.ArtifactStagingDirectory)/drop/$(Build.BuildId).zip'
